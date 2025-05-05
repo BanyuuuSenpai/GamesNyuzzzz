@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Sliding Puzzle Game</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      color: #fff;
+      padding: 20px 10px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      user-select: none;
+    }
+
+    h1 {
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 1.8rem;
+      text-align: center;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    p.subtitle {
+      margin: 0 0 10px 0;
+      font-weight: 400;
+      font-size: 1rem;
+      opacity: 0.85;
+      text-align: center;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    #puzzle-container {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      max-width: 90vw;
+      max-height: 90vw;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 12px 25px rgba(0,0,0,0.5);
+      touch-action: manipulation;
+      user-select: none;
+      background: #333;
+    }
+
+    .tile {
+      position: absolute;
+      width: 25%;
+      height: 25%;
+      background-image: url('Athallah1.jpg');
+      background-size: 400% 400%;
+      border-radius: 8px;
+      box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.4);
+      cursor: pointer;
+      transition: all 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.5);
+      user-select: none;
+    }
+
+    .tile.empty {
+      background: transparent;
+      box-shadow: none;
+      cursor: default;
+    }
+
+    #controls {
+      margin-top: 15px;
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    button {
+      background: rgba(255 255 255 / 0.15);
+      border: none;
+      padding: 10px 18px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 50px;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      transition: background 0.3s ease;
+      user-select: none;
+      min-width: 110px;
+    }
+    button:hover, button:focus {
+      background: rgba(255 255 255 / 0.35);
+      outline: none;
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+
+    #message {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #ffd700;
+      text-shadow: 0 0 8px #ffd700aa;
+      height: 28px;
+      text-align: center;
+      min-height: 28px;
+    }
+
+    @media (max-width: 400px) {
+      #puzzle-container {
+        width: 90vw;
+        height: 90vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Athaleg Puzzle Game</h1>
+  <p class="subtitle">Gambar Anomali Cipok</p>
+
+  <div id="puzzle-container" aria-label="Sliding puzzle game" role="application"></div>
+
+  <div id="controls">
+    <button id="shuffle-btn" aria-label="Shuffle tiles">Acak</button>
+    <button id="solve-btn" aria-label="Solve puzzle">Curang</button>
+  </div>
+
+  <div id="message" role="alert" aria-live="polite"></div>
+
+<script>
+  (function () {
+    const size = 4; // 4x4 puzzle grid
+    const puzzleContainer = document.getElementById('puzzle-container');
+    const shuffleBtn = document.getElementById('shuffle-btn');
+    const solveBtn = document.getElementById('solve-btn');
+    const messageEl = document.getElementById('message');
+
+    // The puzzle's tiles stored as 1D array [tileNumber or 0 for empty]
+    // Tiles numbered from 1 to size*size -1, 0 is empty slot
+    let tiles = [];
+    let emptyIndex = -1;
+
+    // Initialize puzzle variables
+    function initPuzzle() {
+      tiles = [];
+      for (let i = 1; i <= size * size - 1; i++) {
+        tiles.push(i);
+      }
+      tiles.push(0);
+      emptyIndex = tiles.length - 1;
+    }
+
+    // Converts 1D index to {row, col}
+    function indexToPos(index) {
+      return { row: Math.floor(index / size), col: index % size };
+    }
+
+    // Converts {row, col} to 1D index
+    function posToIndex(row, col) {
+      return row * size + col;
+    }
+
+    // Checks if two positions are adjacent (up/down/left/right) for sliding
+    function isAdjacent(index1, index2) {
+      const pos1 = indexToPos(index1);
+      const pos2 = indexToPos(index2);
+      return (
+        (pos1.row === pos2.row && Math.abs(pos1.col - pos2.col) === 1) ||
+        (pos1.col === pos2.col && Math.abs(pos1.row - pos2.row) === 1)
+      );
+    }
+
+    // Renders the puzzle tiles inside container
+    function render() {
+      puzzleContainer.innerHTML = '';
+      tiles.forEach((tileNum, index) => {
+        const tile = document.createElement('div');
+        tile.classList.add('tile');
+        if (tileNum === 0) {
+          tile.classList.add('empty');
+          tile.setAttribute('aria-label', 'Empty slot');
+          tile.tabIndex = -1;
+        } else {
+          tile.style.backgroundPosition = getBackgroundPosition(tileNum);
+          tile.textContent = ''; // No number displayed on tiles for cleaner look
+          tile.setAttribute('aria-label', 'Puzzle piece ' + tileNum);
+          tile.tabIndex = 0; // Focusable for accessibility
+          tile.addEventListener('click', () => tileClicked(index));
+          tile.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              tileClicked(index);
+            }
+          });
+        }
+
+        // Set tile position via CSS absolute top & left based on index
+        const pos = indexToPos(index);
+        tile.style.top = (pos.row * 25) + '%';
+        tile.style.left = (pos.col * 25) + '%';
+
+        puzzleContainer.appendChild(tile);
+      });
+    }
+
+    // Returns background position string for the tile image slice
+    function getBackgroundPosition(tileNum) {
+      const row = Math.floor((tileNum - 1) / size);
+      const col = (tileNum - 1) % size;
+      return `${(col * 100) / (size - 1)}% ${(row * 100) / (size - 1)}%`;
+    }
+
+    // Move tile if adjacent to empty slot
+    function tileClicked(index) {
+      if (isAdjacent(index, emptyIndex)) {
+        // Swap the tile with empty slot
+        [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
+        emptyIndex = index;
+        render();
+        if (checkWin()) {
+          messageEl.textContent = '🎉 Puzzle Solved! Well done!';
+        } else {
+          messageEl.textContent = '';
+        }
+      }
+    }
+
+    // Fisher-Yates shuffle but ensure solvability
+    function shuffle() {
+      do {
+        for (let i = tiles.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+        }
+        emptyIndex = tiles.indexOf(0);
+      } while (!isSolvable() || checkWin());
+      messageEl.textContent = '';
+      render();
+    }
+
+    // Check if current arrangement is solved
+    function checkWin() {
+      for (let i = 0; i < tiles.length - 1; i++) {
+        if (tiles[i] !== i + 1) return false;
+      }
+      return true;
+    }
+
+    // Count number of inversions in tiles array to check solvability
+    function countInversions(array) {
+      let invCount = 0;
+      const noZeroArray = array.filter(n => n !== 0);
+      for (let i = 0; i < noZeroArray.length - 1; i++) {
+        for (let j = i + 1; j < noZeroArray.length; j++) {
+          if (noZeroArray[i] > noZeroArray[j]) invCount++;
+        }
+      }
+      return invCount;
+    }
+
+    // Determine if current tiles array is solvable for size x size sliding puzzle
+    function isSolvable() {
+      const invCount = countInversions(tiles);
+      if (size % 2 === 1) {
+        // Odd grid: number of inversions must be even
+        return invCount % 2 === 0;
+      } else {
+        // Even grid: depends on blank row counting from bottom
+        const blankRowFromBottom = size - Math.floor(emptyIndex / size);
+        if (blankRowFromBottom % 2 === 1) {
+          // blank on odd row from bottom -> inversions must be even
+          return invCount % 2 === 0;
+        } else {
+          // blank on even row from bottom -> inversions must be odd
+          return invCount % 2 === 1;
+        }
+      }
+    }
+
+    // Show solution by resetting tiles in order
+    function solvePuzzle() {
+      for (let i = 0; i < tiles.length - 1; i++) {
+        tiles[i] = i + 1;
+      }
+      tiles[tiles.length - 1] = 0;
+      emptyIndex = tiles.length - 1;
+      messageEl.textContent = 'Tai Curang!';
+      render();
+    }
+
+    // Initialization
+    initPuzzle();
+    render();
+
+    shuffleBtn.addEventListener('click', () => {
+      shuffle();
+    });
+    solveBtn.addEventListener('click', () => {
+      solvePuzzle();
+    });
+
+  })();
+</script>
+</body>
+</html>
